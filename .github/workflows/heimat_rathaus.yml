@@ -7,6 +7,10 @@ on:
         description: "Sendet einen Testpost in Telegram"
         required: false
         default: "false"
+      existing_post:
+        description: "Postet zum Test auch bereits gesehene Beitraege"
+        required: false
+        default: "0"
   schedule:
     - cron: "0 7 * * *"
 
@@ -29,14 +33,13 @@ jobs:
           pip install -r requirements.txt
 
       - name: Telegram Testpost
-        if: github.event_name == 'workflow_dispatch' && inputs.test_post == 'true'
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.test_post == 'true' }}
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-          EX
         run: |
           python - << 'PY'
-          import os, json, datetime
+          import os, datetime
           import requests
 
           token = os.environ["TG_TOKEN"]
@@ -59,7 +62,8 @@ jobs:
               raise SystemExit("Telegram Test fehlgeschlagen, ok=false")
           PY
 
-      - name: Run bot
+      - name: Run bot (manuell)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
@@ -67,13 +71,22 @@ jobs:
         run: |
           python heimat_rathaus.py
 
+      - name: Run bot (schedule)
+        if: ${{ github.event_name == 'schedule' }}
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          EXISTING_POST: "0"
+        run: |
+          python heimat_rathaus.py
+
       - name: Commit state
         run: |
-          if git status --porcelain | grep -q "state_heimat_rathaus.json"; then
+          if git status --porcelain | grep -q "state.json"; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add state_heimat_rathaus.json
-            git commit -m "Update Rathaus state"
+            git add state.json
+            git commit -m "Update state"
             git push
           else
             echo "No state changes"
