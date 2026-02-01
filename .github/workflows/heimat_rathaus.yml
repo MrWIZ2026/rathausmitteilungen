@@ -14,6 +14,10 @@ on:
   schedule:
     - cron: "0 7 * * *"
 
+concurrency:
+  group: heimat-info-rathaus
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -22,10 +26,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
       - name: Install
         run: |
@@ -39,8 +46,7 @@ jobs:
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
           python - << 'PY'
-          import os, datetime
-          import requests
+          import os, datetime, requests
 
           token = os.environ["TG_TOKEN"]
           chat_id = os.environ["TG_CHAT_ID"]
@@ -62,32 +68,31 @@ jobs:
               raise SystemExit("Telegram Test fehlgeschlagen, ok=false")
           PY
 
-      - name: Run bot (manuell)
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+      - name: Run bot
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-          EXISTING_POST: "1"
+          EXISTING_POST: ${{ github.event_name == 'workflow_dispatch' && inputs.existing_post || '0' }}
         run: |
           python heimat_rathaus.py
 
-      - name: Run bot (schedule)
-        if: ${{ github.event_name == 'schedule' }}
-        env:
-          TG_TOKEN: ${{ secrets.TG_TOKEN }}
-          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-          EXISTING_POST: "0"
+      - name: Debug state
         run: |
-          python heimat_rathaus.py
+          echo "event=${{ github.event_name }}"
+          echo "test_post=${{ inputs.test_post }}"
+          echo "existing_post=${{ inputs.existing_post }}"
+          ls -la
+          echo "----- state.json -----"
+          if test -f state.json; then cat state.json; else echo "state.json fehlt"; fi
 
       - name: Commit state
         run: |
-          if git status --porcelain | grep -q "state.json"; then
+          if test -f state.json; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add state.json
-            git commit -m "Update state"
+            git add -f state.json
+            git commit -m "Update state" || echo "Nothing to commit"
             git push
           else
-            echo "No state changes"
+            echo "state.json fehlt, nichts zu committen"
           fi
