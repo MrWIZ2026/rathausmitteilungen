@@ -1,0 +1,44 @@
+name: Heimat Info Rathaus
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run bot
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          EXIST_POSTS: "1"
+        run: |
+          python heimat_rathaus.py
+
+      - name: Commit state
+        run: |
+          if git status --porcelain | grep -q "state_heimat_rathaus.json"; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add state_heimat_rathaus.json
+            git commit -m "Update Rathaus state"
+            git push
+          else
+            echo "No state changes"
+          fi
