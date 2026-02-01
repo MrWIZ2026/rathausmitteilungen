@@ -2,8 +2,13 @@ name: Heimat Info Rathaus
 
 on:
   workflow_dispatch:
+    inputs:
+      test_post:
+        description: "Sendet einen Testpost in Telegram"
+        required: false
+        default: "false"
   schedule:
-    - cron: "0 7 * * *"
+    - cron: "*/30 * * * *"
 
 permissions:
   contents: write
@@ -23,11 +28,40 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Telegram Testpost
+        if: github.event_name == 'workflow_dispatch' && inputs.test_post == 'true'
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          python - << 'PY'
+          import os, json, datetime
+          import requests
+
+          token = os.environ["TG_TOKEN"]
+          chat_id = os.environ["TG_CHAT_ID"]
+
+          text = "✅ Telegram Testpost aus GitHub Actions, " + datetime.datetime.utcnow().isoformat() + "Z"
+          url = f"https://api.telegram.org/bot{token}/sendMessage"
+          payload = {
+              "chat_id": chat_id,
+              "text": text,
+              "disable_web_page_preview": True
+          }
+
+          r = requests.post(url, json=payload, timeout=30)
+          print("HTTP", r.status_code)
+          print(r.text)
+
+          data = r.json()
+          if not data.get("ok"):
+              raise SystemExit("Telegram Test fehlgeschlagen, ok=false")
+          PY
+
       - name: Run bot
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-          EXIST_POSTS: "1"
         run: |
           python heimat_rathaus.py
 
