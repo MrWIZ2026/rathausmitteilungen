@@ -8,7 +8,7 @@ on:
         required: false
         default: "false"
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "0 7 * * *"
 
 permissions:
   contents: write
@@ -33,6 +33,7 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          EX
         run: |
           python - << 'PY'
           import os, json, datetime
