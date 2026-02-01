@@ -63,6 +63,7 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          EXISTING_POST: "1"
         run: |
           python heimat_rathaus.py
 
