@@ -11,12 +11,14 @@ from bs4 import BeautifulSoup
 BASE = "https://www.heimat-info.de"
 LIST_URL = "https://www.heimat-info.de/gemeinden/witzenhausen?tab=City_Hall&categoryid=761f0ac3-3372-479d-8f4b-f3b076f0851a&page={page}"
 
-STATE_FILE = "state_heimat_rathaus.json"
-MAX_PAGES = 2  # bei Bedarf erhöhen
-MAX_SEEN = 500
+STATE_FILE = os.getenv("STATE_FILE", "state.json").strip()
+MAX_PAGES = int(os.getenv("MAX_PAGES", "2"))
+MAX_SEEN = int(os.getenv("MAX_SEEN", "500"))
 
 TG_TOKEN = os.environ.get("TG_TOKEN", "").strip()
 TG_CHAT_ID = os.environ.get("TG_CHAT_ID", "").strip()
+
+EXISTING_POST = os.getenv("EXISTING_POST", "0").strip() == "1"
 
 
 def load_state() -> dict:
@@ -55,21 +57,20 @@ def fetch_list_page(session: requests.Session, page: int) -> list[dict]:
         if not href:
             continue
 
+        title = a.get_text(" ", strip=True)
+        if not title:
+            continue
+
+        # zweiten Link "mehr anzeigen" ignorieren
+        if title.lower() == "mehr anzeigen":
+            continue
+
         full_url = urljoin(BASE, href)
-        text = a.get_text(" ", strip=True)
-
-        if not text:
-            continue
-
-        # Den zweiten Link "mehr anzeigen" ignorieren
-        if text.lower() == "mehr anzeigen":
-            continue
-
         if full_url in used:
             continue
 
         used.add(full_url)
-        items.append({"title": text, "url": full_url})
+        items.append({"title": title, "url": full_url})
 
     return items
 
@@ -91,8 +92,17 @@ def tg_send(session: requests.Session, text: str) -> None:
         "parse_mode": "HTML",
         "disable_web_page_preview": True,
     }
+
     resp = session.post(api, json=payload, timeout=30)
     resp.raise_for_status()
+
+    try:
+        data = resp.json()
+    except Exception as e:
+        raise RuntimeError(f"Telegram Antwort ist kein JSON: {resp.text}") from e
+
+    if not data.get("ok", False):
+        raise RuntimeError(f"Telegram ok=false: {data}")
 
 
 def chunk_blocks(blocks: list[str], max_len: int = 3500) -> list[str]:
@@ -124,10 +134,19 @@ def main() -> None:
             break
         all_items.extend(items)
 
-    # Neu sind die, die wir noch nicht gesehen haben
-    new_items = [it for it in all_items if it["url"] not in seen_set]
+    print(f"Gefunden insgesamt: {len(all_items)} Eintraege")
 
-    # Bootstrap: beim allerersten Run nichts posten, nur merken
+    # Testmodus: poste den neuesten Eintrag, auch wenn schon gesehen
+    if EXISTING_POST:
+        if all_items:
+            it = all_items[0]
+            print("EXISTING_POST aktiv, sende Testbeitrag:", it["url"])
+            tg_send(s, format_block(it["title"], it["url"]))
+        else:
+            print("Keine Eintraege gefunden, Testpost nicht moeglich.")
+        return
+
+    # Bootstrap: beim ersten Run nur merken, nicht posten
     if not seen_list:
         for it in all_items:
             if it["url"] not in seen_set:
@@ -138,7 +157,10 @@ def main() -> None:
         print("Bootstrap run, keine Nachrichten gesendet.")
         return
 
-    # In sinnvoller Reihenfolge posten: älteste der neuen zuerst
+    new_items = [it for it in all_items if it["url"] not in seen_set]
+    print(f"Neue Eintraege: {len(new_items)}")
+
+    # alte zuerst posten
     new_blocks = [format_block(it["title"], it["url"]) for it in reversed(new_items)]
 
     if new_blocks:
@@ -154,8 +176,7 @@ def main() -> None:
 
     state["seen"] = seen_list[-MAX_SEEN:]
     save_state(state)
-
-    print(f"Gefunden: {len(all_items)}, neu: {len(new_items)}")
+    print("State gespeichert:", STATE_FILE)
 
 
 if __name__ == "__main__":
