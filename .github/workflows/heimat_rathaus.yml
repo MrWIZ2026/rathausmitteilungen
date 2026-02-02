@@ -2,13 +2,9 @@ name: Heimat Info Rathaus
 
 on:
   workflow_dispatch:
-    inputs:
-      post_all:
-        description: ""
-        required: false
-        default: "true"
   schedule:
-    - cron: "0 7 * * *"
+    - cron: "0 8 * * *"
+    - cron: "0 16 * * *"
 
 concurrency:
   group: heimat-info-rathaus
@@ -39,14 +35,16 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-          EXISTING_POST: ${{ (github.event_name == 'workflow_dispatch' && inputs.post_all == 'true') && '1' || '0' }}
+          EXISTING_POST: "1"
+          MAX_PAGES: "2"
+          MAX_POSTS_PER_RUN: "50"
+          DEBUG: "1"
         run: |
           python heimat_rathaus.py
 
       - name: Debug state
         run: |
           echo "event=${{ github.event_name }}"
-          echo "post_all=${{ inputs.post_all }}"
           echo "EXISTING_POST(env)=$EXISTING_POST"
           ls -la
           echo "----- state.json -----"
