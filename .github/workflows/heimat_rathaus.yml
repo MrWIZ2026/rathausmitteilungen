@@ -35,7 +35,7 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-          EXISTING_POST: "0"
+          EXISTING_POST: "1"
           MAX_PAGES: "2"
           MAX_POSTS_PER_RUN: "50"
           DEBUG: "0"
