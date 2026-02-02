@@ -3,10 +3,10 @@ name: Heimat Info Rathaus
 on:
   workflow_dispatch:
     inputs:
-      existing_post:
-        description: "Postet alle aktuell gefundenen Beitraege auch wenn sie schon in state.json stehen"
+      post_all:
+        description: ""
         required: false
-        default: "1"
+        default: "true"
   schedule:
     - cron: "0 7 * * *"
 
@@ -39,14 +39,15 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-          EXISTING_POST: ${{ github.event_name == 'workflow_dispatch' && inputs.existing_post || '0' }}
+          EXISTING_POST: "1!
         run: |
           python heimat_rathaus.py
 
       - name: Debug state
         run: |
           echo "event=${{ github.event_name }}"
-          echo "existing_post=${{ inputs.existing_post }}"
+          echo "post_all=${{ inputs.post_all }}"
+          echo "EXISTING_POST(env)=$EXISTING_POST"
           ls -la
           echo "----- state.json -----"
           if test -f state.json; then cat state.json; else echo "state.json fehlt"; fi
