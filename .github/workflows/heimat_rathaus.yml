@@ -3,7 +3,7 @@ name: Heimat Info Rathaus
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 8 * * *"
+    - cron: "0 4 * * *"
     - cron: "0 16 * * *"
 
 concurrency:
@@ -38,7 +38,7 @@ jobs:
           EXISTING_POST: "1"
           MAX_PAGES: "2"
           MAX_POSTS_PER_RUN: "50"
-          DEBUG: "1"
+          DEBUG: "0"
         run: |
           python heimat_rathaus.py
 
