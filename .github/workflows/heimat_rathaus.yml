@@ -39,7 +39,7 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-          EXISTING_POST: "1!
+          EXISTING_POST: ${{ (github.event_name == 'workflow_dispatch' && inputs.post_all == 'true') && '1' || '0' }}
         run: |
           python heimat_rathaus.py
 
