@@ -163,10 +163,17 @@ def main() -> None:
         print("Keine Eintraege gefunden, State gespeichert.")
         return
 
+        # Testmodus: poste alle Eintraege, auch wenn schon gesehen
     if EXISTING_POST:
-        it = all_items[0]
-        print("EXISTING_POST aktiv, sende Testbeitrag:", it["url"])
-        tg_send(s, format_block(it["title"], it["url"]))
+        print("EXISTING_POST aktiv, sende alle aktuell gefundenen Eintraege")
+
+        posted = 0
+        for it in reversed(all_items):
+            tg_send(s, format_block(it["title"], it["url"]))
+            posted += 1
+            time.sleep(RATE_LIMIT_SLEEP)
+
+        print(f"Gepostet im EXISTING_POST Modus: {posted}")
 
         for it2 in all_items:
             if it2["url"] not in seen_set:
