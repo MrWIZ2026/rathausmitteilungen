@@ -3,10 +3,6 @@ name: Heimat Info Rathaus
 on:
   workflow_dispatch:
     inputs:
-      test_post:
-        description: "Sendet einen Testpost in Telegram"
-        required: false
-        default: "false"
       existing_post:
         description: "Postet zum Test auch bereits gesehene Beitraege"
         required: false
@@ -39,33 +35,62 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Telegram Testpost
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.test_post == 'true' }}
+      - name: Telegram Testnachricht
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER_URL: ${{ github.server_url }}
         run: |
           python - << 'PY'
-          import os, datetime, requests
+          import os, json, datetime
+          from urllib.request import Request, urlopen
+          from urllib.parse import urlencode
 
-          token = os.environ["TG_TOKEN"]
-          chat_id = os.environ["TG_CHAT_ID"]
+          token = (os.environ.get("TG_TOKEN") or "").strip()
+          chat_id = (os.environ.get("TG_CHAT_ID") or "").strip()
+          if not token or not chat_id:
+              raise SystemExit("TG_TOKEN oder TG_CHAT_ID fehlt in Secrets")
 
-          text = "✅ Telegram Testpost aus GitHub Actions, " + datetime.datetime.utcnow().isoformat() + "Z"
-          url = f"https://api.telegram.org/bot{token}/sendMessage"
-          payload = {
+          event = os.environ.get("EVENT_NAME", "")
+          repo = os.environ.get("REPO", "")
+          ref = os.environ.get("REF", "")
+          sha = (os.environ.get("SHA", "") or "")[:8]
+          run_id = os.environ.get("RUN_ID", "")
+          server = os.environ.get("SERVER_URL", "")
+          run_url = f"{server}/{repo}/actions/runs/{run_id}"
+
+          ts = datetime.datetime.utcnow().isoformat() + "Z"
+          text = (
+              "✅ Telegram Testnachricht\n"
+              f"Zeit: {ts}\n"
+              f"Event: {event}\n"
+              f"Branch: {ref}\n"
+              f"Commit: {sha}\n"
+              f"Run: {run_url}"
+          )
+
+          api = f"https://api.telegram.org/bot{token}/sendMessage"
+          data = urlencode({
               "chat_id": chat_id,
               "text": text,
-              "disable_web_page_preview": True
-          }
+              "disable_web_page_preview": "true"
+          }).encode("utf-8")
 
-          r = requests.post(url, json=payload, timeout=30)
-          print("HTTP", r.status_code)
-          print(r.text)
+          req = Request(api, data=data, headers={"Content-Type": "application/x-www-form-urlencoded"})
+          with urlopen(req, timeout=30) as resp:
+              body = resp.read().decode("utf-8")
 
-          data = r.json()
-          if not data.get("ok"):
-              raise SystemExit("Telegram Test fehlgeschlagen, ok=false")
+          print("Telegram raw:", body)
+          j = json.loads(body)
+          if not j.get("ok"):
+              raise SystemExit("Telegram ok=false: " + body)
+
+          print("OK, message_id:", (j.get("result") or {}).get("message_id"))
           PY
 
       - name: Run bot
@@ -79,7 +104,6 @@ jobs:
       - name: Debug state
         run: |
           echo "event=${{ github.event_name }}"
-          echo "test_post=${{ inputs.test_post }}"
           echo "existing_post=${{ inputs.existing_post }}"
           ls -la
           echo "----- state.json -----"
